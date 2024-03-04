@@ -1,0 +1,239 @@
+std := import('std')
+str := import('str')
+
+fn Acorn(loc) {
+
+  body := document.body
+  loc <- loc |> std.default(body)
+
+  self := {}
+
+  self.Line := fn Line {
+    bar := document.createElement('pre')
+
+    bar.style.color <- '#fff'
+    bar.style.fontFamily <- 'Courier New, Courier, Lucida Sans Typewriter, Lucida Typewriter, monospace'
+
+    bar.style.margin <- 0
+    bar.style.width <- 0
+    
+    line_self := {
+      bar: bar
+    
+      setML: fn setML(ml) bar.innerHTML <- (ml |> std.default(''))
+
+      addToML: fn addToML(text) setML(bar.innerHTML + (text |> std.default('')))
+
+      backspaceML: fn backspaceML(amm) setML(
+        bar.innerHTML |> std.slice(
+          0, bar.innerHTML |> len() - (amm |> std.default(1))
+        )
+      )
+
+      swapOverTag: fn swapOverTag(tageName) if bar.tagName {
+        'pre' -> {
+          el_ := document.createElement('input')
+          el.value <- bar.innerHTML
+          bar.replaceWith(el)
+        }
+        
+        'input' -> {
+          el_ := document.createElement('pre')
+          el.innerHTML <- bar.value
+          bar.replaceWith(el)
+        }
+      }
+
+      animate: fn animate(text, speed, add?) {
+        speed <- speed |> std.default(0.1)
+        text_ := ''
+        if add? {
+          ?, false -> {
+            with std.each(text |> str.split()) fn(item, i) {
+              with wait(speed * i) fn {
+                line_self.setML(text_ <- text_ + item)
+              }
+            }
+          }
+
+          _ -> with std.each(text |> str.split()) fn(item, i) {
+            with wait(speed * i) fn {
+              line_self.addToML(item)
+            }
+          }
+        }
+
+        {
+          cost: text |> len() * speed
+        }
+      }
+      
+      removeML: fn removeML(amm) {
+        amount := amm |> std.default(1)
+        
+        amount |> std.slice(0, amount |> len() - 1)
+      }
+    }
+  }
+
+  self.make := fn make(w, h) {
+    backdrop := document.createElement('section')
+    loc.append(backdrop)
+    
+    body.style.overflowX <- 'hidden'
+    
+    body.style.padding <- ''
+    body.style.margin <- 0
+    body.style.width <- 0
+
+    backdrop.style.backgroundColor <- '#000'
+    backdrop.style.margin <- 0
+    backdrop.style.padding <- '10px'
+    backdrop.style.width <- w |> std.default('100vw')
+    backdrop.style.height <- h |> std.default('100vh')
+
+    {
+      print: fn(args...) {
+        l_ := Line()
+        std.println(args...)
+        backdrop.append(l_.bar)
+
+        with std.each(args) fn(item) l_.addToML(item)
+      }
+
+      animate: fn(args...) {
+        l_ := Line()
+        backdrop.append(l_.bar)
+
+        std.println(args...) 
+        
+        remade := args |> std.take(len(args) - 1)
+        lastFew := (args |> std.takeLast(1)).0
+
+        with std.each(remade) fn(item) l_.animate(item, lastFew, true)
+      }
+
+      clearLast: fn {
+        backdrop.lastElementChild.remove()
+      }
+
+      clear: fn {
+        backdrop.innerHTML <- ''
+      }
+
+      // ---
+
+      input: fn(cb, display?) {
+        cache := ''
+
+        l_ := Line()
+        backdrop.append(l_.bar)
+
+        fn CursorAnimator {
+          state_ := false
+          breaker := false
+          rectUnicodes := [
+            '█'
+            ' '
+          ]
+          
+          {
+            begin: fn {
+              result := if !breaker -> {
+                if state_ {
+                  state_ <- !state_
+
+                  false -> rectUnicodes.0
+                  _ -> rectUnicodes.1
+                }
+              }
+
+              {
+                breaker: breaker
+                result: result
+              }
+            }
+            
+            breaker: breaker
+            tog: fn() breaker <- !breaker
+            off: fn() breaker <- true
+            on: fn() breaker <- false
+            get: fn() breaker
+          }
+        }
+        
+        ca := CursorAnimator()
+
+        keyState := false
+
+        fn DisplayLoop() if !ca.get() -> {
+          with l_.addToML() ca.begin().result
+          keyState <- true
+          
+          with wait(1 / 2) fn {
+            if keyState -> {
+              l_.backspaceML()
+              keyState <- false
+            }
+            
+            with requestAnimationFrame() DisplayLoop
+          }
+        }
+
+        fn inputEvent(event) {
+          key := event.key
+          kc := event.keyCode
+
+          if {
+            kc = 8, key = 'Backspace' -> {
+              cache <- cache |> std.slice(0, cache |> len() - 1)
+              l_.backspaceML()
+            }
+
+            key |> len() > 1 -> if key {
+              'Enter' -> {
+                removeEventListener('keydown', inputEvent)
+                ca.off()
+                cb(cache)
+              }
+            }
+
+            key |> len() = 1 -> {
+              if keyState -> {
+                l_.backspaceML()
+                keyState <- false
+              }
+              
+              l_.addToML(key)
+              cache << key
+            }
+          }
+            
+        }
+        
+        with addEventListener('keydown') inputEvent
+        with requestAnimationFrame() DisplayLoop
+
+        cache
+      }
+      
+    }
+  }
+
+  a := make()
+
+  with a.input() fn(res) {
+    print(res)
+    
+    with a.input() fn(res) {
+      print(res)
+      
+      with a.input() fn(res) print(res)
+    }
+  }
+
+  self
+
+}
+
+Acorn()
