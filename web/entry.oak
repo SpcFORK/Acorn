@@ -220,18 +220,6 @@ fn Acorn(loc) {
     }
   }
 
-  a := make()
-
-  with a.input() fn(res) {
-    print(res)
-    
-    with a.input() fn(res) {
-      print(res)
-      
-      with a.input() fn(res) print(res)
-    }
-  }
-
   self
 
 }
